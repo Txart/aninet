@@ -385,7 +385,7 @@ def __one_level(graph, status) :
                     best_com = [com]
                 # SB added sept 5 2012 (original was just picking first instance of incr > best_increase)
                 elif incr == best_increase:
-                	best_com.append(com)
+                    best_com.append(com)
             best_com = random.choice(best_com) # sb added         
             __insert(node, best_com,
                     neigh_communities.get(best_com, 0.), status)
@@ -411,58 +411,58 @@ def __one_level_sb(graph, status, part_first) :
     random.seed()
     
     if part_first is None:
-    		__one_level(graph,status)
-    		return
+        __one_level(graph,status)
+        return
     else:
-    	    modif = True
-	    nb_pass_done = 0
-	    cur_mod = __modularity(status)
-	    new_mod = cur_mod
-	    
-	    while modif  and nb_pass_done != __PASS_MAX :
-		   cur_mod = new_mod
-		   modif = False
-		   nb_pass_done += 1
-		   
-		   for node in graph.nodes() :
-		       com_node = status.node2com[node]
-		       degc_totw = status.gdegrees.get(node, 0.) / (status.total_weight*2.)
-		       neigh_communities = __neighcom(node, graph, status)
-		       __remove(node, com_node,
-		               neigh_communities.get(com_node, 0.), status)
-		       best_com = com_node
-		       best_increase = 0
-		       # for com, dnc in neigh_communities.iteritems() :
-		       incr =  [(dnc  - status.degrees.get(com, 0.) * degc_totw) for com, dnc in neigh_communities.iteritems()]
-		       com = [c for c,d in neigh_communities.iteritems()]
-		       com_incr = dict(zip(com, incr))
-		       #if len(com_incr) > 0:
-				  #print node, com_incr
-			#	  max_com = [key for key,val in com_incr.iteritems() if val == max(com_incr.values())][0]# converts from list to num
-			#	  max_incr = [val for key,val in com_incr.iteritems() if val == max(com_incr.values())][0]
-			#	  if max_incr > best_increase:
-			#		best_com = max_com
-			#	  com_incr2 = general_tools.remove_from_dict_key(com_incr,max_com)
-			#	  if len(com_incr2)>0:
-			#	  	second_com = [key for key,val in com_incr2.iteritems() if val == max(com_incr2.values())][0]
-			#	  	second_incr = [val for key,val in com_incr2.iteritems() if val == max(com_incr2.values())][0]
-				  	#com_incr2 = general_tools.remove_from_dict_key(com_incr2,second_com)
-			#	  	best_com = second_com
-		       #print best_com, max_com, second_com
-		       #print max_incr/(1.0*second_incr)  
-		       __insert(node, best_com, neigh_communities.get(best_com, 0.), status)
-		       if best_com != com_node :
-		           modif = True
-		           
-		       # compute spatial cohesiveness after every move
-		       #new_mod = __modularity(status)
-		       #partition = __renumber(status.node2com)
-		       #(sc,Gnn) = find_community_structure.measure_spatial_cohesiveness_shweta(graph, partition,"county")
-		       #print new_mod, sc        
+        modif = True
+        nb_pass_done = 0
+        cur_mod = __modularity(status)
+        new_mod = cur_mod
+        
+        while modif  and nb_pass_done != __PASS_MAX :
+           cur_mod = new_mod
+           modif = False
+           nb_pass_done += 1
+           
+           for node in graph.nodes() :
+               com_node = status.node2com[node]
+               degc_totw = status.gdegrees.get(node, 0.) / (status.total_weight*2.)
+               neigh_communities = __neighcom(node, graph, status)
+               __remove(node, com_node,
+                       neigh_communities.get(com_node, 0.), status)
+               best_com = com_node
+               best_increase = 0
+               # for com, dnc in neigh_communities.iteritems() :
+               incr =  [(dnc  - status.degrees.get(com, 0.) * degc_totw) for com, dnc in neigh_communities.iteritems()]
+               com = [c for c,d in neigh_communities.iteritems()]
+               com_incr = dict(zip(com, incr))
+               #if len(com_incr) > 0:
+                  #print node, com_incr
+            #      max_com = [key for key,val in com_incr.iteritems() if val == max(com_incr.values())][0]# converts from list to num
+            #      max_incr = [val for key,val in com_incr.iteritems() if val == max(com_incr.values())][0]
+            #      if max_incr > best_increase:
+            #        best_com = max_com
+            #      com_incr2 = general_tools.remove_from_dict_key(com_incr,max_com)
+            #      if len(com_incr2)>0:
+            #          second_com = [key for key,val in com_incr2.iteritems() if val == max(com_incr2.values())][0]
+            #          second_incr = [val for key,val in com_incr2.iteritems() if val == max(com_incr2.values())][0]
+                      #com_incr2 = general_tools.remove_from_dict_key(com_incr2,second_com)
+            #          best_com = second_com
+               #print best_com, max_com, second_com
+               #print max_incr/(1.0*second_incr)  
+               __insert(node, best_com, neigh_communities.get(best_com, 0.), status)
+               if best_com != com_node :
+                   modif = True
+                   
+               # compute spatial cohesiveness after every move
+               #new_mod = __modularity(status)
+               #partition = __renumber(status.node2com)
+               #(sc,Gnn) = find_community_structure.measure_spatial_cohesiveness_shweta(graph, partition,"county")
+               #print new_mod, sc        
 
-		   new_mod = __modularity(status)
-		   if new_mod - cur_mod < __MIN :
-		       break
+           new_mod = __modularity(status)
+           if new_mod - cur_mod < __MIN :
+               break
 
 class Status :
     """
@@ -591,13 +591,13 @@ def __main() :
         partition = best_partition(graphfile, {}, {})
         print >> sys.stderr, str(modularity(partition, graphfile))
         for elem, part in partition.iteritems() :
-            print str(elem) + " " + str(part)
+            print(str(elem) + " " + str(part))
     except (IndexError, IOError):
-        print "Usage : ./community filename"
-        print "find the communities in graph filename and display the dendogram"
-        print "Parameters:"
-        print "filename is a binary file as generated by the "
-        print "convert utility distributed with the C implementation"
+        print("Usage : ./community filename")
+        print("find the communities in graph filename and display the dendogram")
+        print("Parameters:")
+        print("filename is a binary file as generated by the ")
+        print("convert utility distributed with the C implementation")
 
     
 

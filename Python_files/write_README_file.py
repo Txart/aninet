@@ -51,11 +51,11 @@ for mydir in directories:
 	sub_directories = os.listdir(os.path.abspath('../Networks/'+mydir))
 	sub_directories = [name for name in sub_directories if name != '.DS_Store']
 	for subdir in sub_directories:
-		print mydir, subdir
+		print(mydir, subdir)
 		
 		#######################################
 		## read qualitative attributes
-		dt = pd.read_csv('Network_summary_master_file.csv')
+		dt = pd.read_csv('Network_summary_master_file.csv', engine='python')
 		dt_sub =  dt[dt['dirname'].str.contains(subdir)] 
 		location = dt_sub['geographical_location'].iloc[0]
 		taxa = dt_sub['taxa'].iloc[0]
@@ -74,7 +74,7 @@ for mydir in directories:
 		definition_of_interaction = dt_sub['definition_of_interaction'].iloc[0]
 		cit1 = citn.split()
 		cit2 = []
-		for num in xrange(len(cit1)):
+		for num in range(len(cit1)):
 			if  (num> 0 and num%7==0): 
 				cit2.append(cit1[num])
 				cit2.append('<br>')
