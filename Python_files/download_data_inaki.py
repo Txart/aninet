@@ -14,6 +14,8 @@ import pandas as pd
 directories = os.listdir(os.path.abspath('../Networks/'))
 directories = [name for name in directories if name != '.DS_Store']
 
+df_info = pd.read_csv('Network_summary_master_file.csv', engine='python')
+
 networks = {}
 
 for mydir in directories:
@@ -63,10 +65,9 @@ with open(baboon_fn, 'rb'):
 # aggregated network. No weights  
 G_bab_aggr = nx.from_pandas_edgelist(df=df_bab, source='i', target='j')
 
-# Network with weights. Each interaction corresponds to a weight.
+# Network with weights. Each interaction corresponds to a weight. The weight is saved as an attribute.
 G_bab = nx.Graph()
 G_bab.add_nodes_from(list(G_bab_aggr.nodes))
-# G_bab.add_edges_from(list(G_bab_aggr.edges))
 for index, row in df_bab.iterrows():
     if G_bab.has_edge(row.i, row.j):
         G_bab[row.i][row.j]['weight'] += 1.
@@ -74,4 +75,4 @@ for index, row in df_bab.iterrows():
         G_bab.add_edge(row.i, row.j, t=row.t, Date=row.Date, Time=row.Time, weight=1.)
 
 # Normalize weights
-all_weights = [data['weight'] for i,j,data in G.edges(data=True)]
+# all_weights = [data['weight'] for i,j,data in G.edges(data=True)]
