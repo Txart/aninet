@@ -9,6 +9,7 @@ Created on Fri Feb 28 14:53:11 2020
 import os
 import networkx as nx
 import numpy as np
+import pandas as pd
 
 directories = os.listdir(os.path.abspath('../Networks/'))
 directories = [name for name in directories if name != '.DS_Store']
@@ -50,3 +51,16 @@ for mydir in directories:
                 #########################################################
                         
                 networks[filename] = G
+
+"""
+Baboons
+"""
+
+baboon_fn = os.path.abspath('../baboons/RFID_data/RFID_data.txt') 
+
+file = open(baboon_fn, 'rb')
+df_bab = pd.read_csv(baboon_fn)
+file.close()
+
+G_bab = nx.from_pandas_edgelist(df=df_bab, source='i', target='j')
+
