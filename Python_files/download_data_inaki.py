@@ -10,6 +10,7 @@ import os
 import networkx as nx
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
 
 directories = os.listdir(os.path.abspath('../Networks/'))
 directories = [name for name in directories if name != '.DS_Store']
@@ -76,3 +77,25 @@ for index, row in df_bab.iterrows():
 
 # Normalize weights
 # all_weights = [data['weight'] for i,j,data in G.edges(data=True)]
+        
+"""
+Interactions with friends
+"""
+A = nx.to_numpy_array(G_bab) # weighted adjacency matrix
+
+# Plot histograms
+n_bins = len(G_bab.nodes)
+# Individual histograms
+fig, axs = plt.subplots(4,3, tight_layout=True, sharex=True)
+for i, ax in enumerate(axs.reshape(-1)):
+    ax.bar(x=np.arange(0,n_bins), height=np.flip(np.sort(A[i])))
+
+# Global histogram
+A_ordered = np.zeros(shape=A.shape)
+for i, row in enumerate(A):
+    A_ordered[i] = np.flip(np.sort(row))
+
+bar_heights = np.sum(A_ordered, axis=0)
+plt.figure()
+plt.title('Global graph BABOONS (separate dataset)')
+plt.bar(x=np.arange(0,n_bins), height=bar_heights)
