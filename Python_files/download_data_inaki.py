@@ -12,6 +12,52 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+def _group_segmentation(fn):
+    """
+
+    Parameters
+    ----------
+    fn : string
+        Name of the file (.graphml) containing the data.
+
+    Returns
+    -------
+    g : string
+        Group membership of datafile. Groups are same species but different relevant attribute, e.g., male/female, location, community, etc.
+        Several graphfiles go often into the same group
+        Different groups often involve different individuals, different number of individuals, etc.
+    sg : string
+        Subgroup. Further compartimentalization into subgroups.
+
+    """
+    g = 'NoGroup' ; sg = 'NoSubgroup'
+    
+    if 'geese' in fn:
+        if 'female' in fn: g = 'female'
+        else: g = 'male'
+    elif 'arnberg_sparrow' in fn:
+        if '2009' in fn: g = '2009'
+        else: g = '2010'
+    elif 'shizuka' in fn:
+        if 'Season2' in fn: g = 'Season2'
+        else: g = 'Season3'
+    elif 'weaver' in fn: g = fn.split(sep='_')[-1][:2]
+    elif 'wildbird' in fn: g = fn.split(sep='_')[-1][0]
+    elif 'ant_mersch' in fn: g = fn.split(sep='_')[3]; sg = fn.split(sep='_')[4][:5]
+    elif 'ant_quevillon' in fn: g = fn.split(sep='_')[3]; sg = fn.split(sep='_')[4][:4]
+    elif 'beetle' in fn: g = fn.split(sep='_')[3]; sg = fn.split(sep='_')[4] + fn.split(sep='_')[5][0]
+    elif 'baboon_franz' in fn: g = fn.split(sep='_')[2]; sg = fn.split(sep='_')[4][:2]
+    elif 'gazda' in fn: g = fn.split(sep='_')[2]
+    elif 'elephantseal_' in fn: g = fn.split(sep='_')[5] + '-' + fn.split(sep='_')[6]
+    elif 'hyena' in fn: g = fn.split(sep='_')[2][:8]
+    elif 'griffin_primate' in fn: g = fn.split(sep='_')[4][:2]
+    elif 'raccoon' in fn: g = fn.split(sep='_')[3][:2]
+    elif 'Macaque' in fn: g = fn.split(sep='_')[1]; sg = fn.split(sep='_')[2]
+    elif 'voles' in fn: g = fn.split(sep='_')[2] + fn.split(sep='_')[3]; sg = fn.split(sep='_')[4] + fn.split(sep='_')[5] + fn.split(sep='_')[6][:2]
+    elif 'tortoise' in fn: g = fn.split(sep='_')[3]; sg = fn.split(sep='_')[6] + fn.split(sep='_')[7] + fn.split(sep='_')[8]
+    
+    return g, sg
+
 
 def read_animals_database():
     directories = os.listdir(os.path.abspath('../Networks/'))
@@ -34,7 +80,6 @@ def read_animals_database():
                     
                     G = nx.read_graphml(os.path.abspath('../Networks/'+mydir+'/'+subdir+'/'+ filename))
                     G.remove_edges_from(nx.selfloop_edges(G))                
-                    n_nodes = len(list(G.nodes))
                     n_edges = len(list(G.edges))
                     
                     ## if network does not have weights, add a weight of one to all edges
@@ -48,12 +93,16 @@ def read_animals_database():
                     for (n1, n2) in list(G.edges):
                         if G[n1][n2]['weight']==0: 
                             G.remove_edge(n1,n2)
-                            
+                    # Group and subgroup differentiation
+                    group, subgroup = _group_segmentation(filename)
                     di['graph'] = G
                     di['taxa'] = mydir
                     di['species'] = subdir
+                    di['group'] = group
+                    di['subgroup'] = subgroup # further group segmentation, mentioned above
                     di['filename'] = filename
-                    di['ego_net'] = get_ego_matrix(G) # Some are empty, so normalization throws error. Check!!
+                    di['ego_net'] = None # these are set up later
+                    di['ego_net_std'] = None
                     networks.append(di)
      
 
@@ -76,12 +125,16 @@ def read_animals_database():
         else:
             G_bab.add_edge(row.i, row.j, t=row.t, Date=row.Date, Time=row.Time, weight=1.)
     
+    ego_net, ego_net_std = get_ego_matrix(G_bab)
     networks.append({
         'graph': G_bab,
         'taxa': 'Mammalia',
         'species' : 'baboon_separate_dataset',
         'filename': 'baboon_separate_dataset',
-        'ego_net': get_ego_matrix(G_bab)})               
+        'group': 'NoGroup',
+        'subgroup': 'NoSubgroup',
+        'ego_net': None, # these are set up later
+        'ego_net_std':None})               
     
     df_networks = pd.DataFrame(networks)
                     
@@ -104,8 +157,10 @@ def get_ego_matrix(graph):
         
     Returns
     -------
-    species_sum_array : np.array
+    group_sum_array : np.array
         1-d sorted vector. Each entry corresponds to the fraction of the weight of the ego-network of the species.
+    group_std_array: np.array
+        1-d vector of std for the species_sum_array
         
     Note
     -------
@@ -123,39 +178,64 @@ def get_ego_matrix(graph):
     norm_factor = np.multiply(np.sum(A,axis=0), np.ones(shape=A.shape)).transpose()
     A_norm = np.divide(A, norm_factor) # vector type normalization to save time
     A_norm_ordered = np.flip(np.sort(A_norm), axis=-1) # order each row from highest to lowest. 
-    species_sum_array = np.sum(A_norm_ordered, axis=0) /  A.shape[0] # mean
+    group_mean_array = np.mean(A_norm_ordered, axis=0)
+    group_std_array = np.std(A_norm_ordered, axis=0)
     
-    return species_sum_array
+    return group_mean_array, group_std_array
 
-def plot_ego_barplot(ego_array, title):
+def plot_ego_barplot(ego_array, std, title):
     plt.figure()
-    plt.bar(x=np.arange(1,ego_array.shape[0]+1), height=ego_array)
+    plt.bar(x=np.arange(1,ego_array.shape[0]+1), height=ego_array, yerr=std)
     plt.title(title)
 
 
 """
 #####
 """
+# Read data
 df_info, df_nets = read_animals_database()
 
+# Generate ego matrices and store them in dataframe
+for index, row in df_nets.iterrows():
+    row['ego_net'], row['ego_net_std'] = get_ego_matrix(row['graph']) # Some are empty, so normalization throws error. Check!!
+
+
 # Ego plots aggregated accross species
+plt.close('all')
 species_labels = df_nets.species.unique()
-plots = []
+
 for s in species_labels:
-    print(s)
-    ego_nets = df_nets[df_nets.species == s].ego_net.to_numpy()
-    try:
-        ego_mean = np.sum(ego_nets, axis=0)/len(ego_nets)
-    except:
-        print('>>>>>>>> ERROR in {} species. Probably, there is a mismatch in number of individuals accross measurements'.format(s))
+    if 'ants' in s or 'beetle' in s or 'baboon_association' in s or 'voles' in s or 'tortoise' in s: # Skip ants, beetles, baboons, voles and tortoises for now. Problem: measurements of same colony (group) for different days (subgroups) have different amount of individuals
         continue
-    finally:
-        plots.append(plot_ego_barplot(ego_mean, title=s))
+    print(s)
+    df_species = df_nets[df_nets.species == s]
+    group_labels = df_species.group.unique()
+    for group in group_labels:
+        df_group = df_species[df_species.group == group]
+        ego_nets = df_group.ego_net.to_numpy()
+        ego_net_stds = df_group.ego_net_std.to_numpy() # individual stds
+        ego_net_stds_vstack = np.vstack(ego_net_stds) # These 3 lines solve problem with nparray formatting of dataframe
+        if len(ego_net_stds_vstack.shape) > 1:
+            ego_net_stds_vstack = ego_net_stds_vstack[0]
+        try:
+            ego_mean = np.mean(ego_nets, axis=0)
+            ego_std_group = np.std(ego_nets, axis=0) # Careful! There are two std, 1) at the level of single-measurement, 2) at the level of groups (more than one measurements, more than one graphfiles)!
+            if not np.any(ego_std_group): # if std at the group level is zero, i.e., if there are no groups
+                plot_ego_barplot(ego_mean, std=ego_net_stds_vstack, title=s + group)
+            else: # if more than one group, plot group-wise std. Here group means  a bunch of measurements of a same species with same relevant attributes.
+                plot_ego_barplot(ego_mean, std=ego_std_group, title=s + group)
+        except:
+            print('>>>>>>>> ERROR in {} species. Probably, there is a mismatch in number of individuals accross measurements'.format(s))
+            continue
+
+        
 
 """
 TODO:
     - Manage plots better. Maybe save figs.
     - Some plots are identical! E.g., asianelephants and baboons. WHY??
+    - Sometimes the normalization is a division by zero. Check!
+    - Problems with ego nets of ants, beetles, baboons, voles and tortoises: measurements of same colony (group) for different days (subgroups) have different amount of individuals, and ego networks cannot be aggregated
 """ 
 
 
