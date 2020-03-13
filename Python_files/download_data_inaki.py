@@ -146,16 +146,17 @@ for s in species_labels:
     ego_nets = df_nets[df_nets.species == s].ego_net.to_numpy()
     try:
         ego_mean = np.sum(ego_nets, axis=0)/len(ego_nets)
+        plots.append(plot_ego_barplot(ego_mean, title=s))
     except:
         print('>>>>>>>> ERROR in {} species. Probably, there is a mismatch in number of individuals accross measurements'.format(s))
         continue
-    finally:
-        plots.append(plot_ego_barplot(ego_mean, title=s))
+        
 
 """
 TODO:
     - Manage plots better. Maybe save figs.
     - Some plots are identical! E.g., asianelephants and baboons. WHY??
+    - Right now, not separation of some data. E.g., ant colony_1 and ant_colony_2 are lumped into the same graph.
 """ 
 
 
