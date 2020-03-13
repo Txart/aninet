@@ -103,6 +103,7 @@ def read_animals_database():
                     di['group'] = group
                     di['subgroup'] = subgroup # further group segmentation, mentioned above
                     di['filename'] = filename
+                    di['clustering'] = nx.clustering(G, weight='weight') # Weighted clustering coeff. by Onnela
                     di['ego_net'] = None # these are set up later
                     di['ego_net_std'] = None
                     di['exponent'] = None
@@ -193,6 +194,14 @@ def plot_ego_barplot(ego_array, std, title):
     plt.bar(x=np.arange(1,ego_array.shape[0]+1), height=ego_array, yerr=std)
     plt.title(title)
     
+def plot_exponents(df_nets):
+    plt.figure()
+    plt.title('exponents')
+    plt.scatter(x = df_nets[df_nets['exponent'] < 0]['taxa'], y = df_nets[df_nets['exponent'] < 0]['exponent'])
+    
+    plt.savefig('exponent_taxa.png')
+    
+    
 def exponent_linear_regression(ego_values):
     """
     Assumes exponential decrease in ego_values and performs linear regression of the log
@@ -281,22 +290,48 @@ for s in species_labels:
         except:
             print('>>>>>>>> ERROR in {} species. Probably, there is a mismatch in number of individuals accross measurements'.format(s))
             continue
+        
+# plot the ones excluded above one by one
+ant_colony = df_nets[df_nets['group'] == 'colony6']
+elephant_seal = df_nets[df_nets['species']=='elephantseal_dominance_weighted']
+beetle_C1 = df_nets[df_nets['group']=='C1']
+a = beetle_C1
+for day, i in enumerate(a.ego_net.to_numpy()):
+    plot_ego_barplot(i, std=0, title='Animal'.format(day))
+
+# plot exponent values
+plot_exponents(df_nets)
 
 
- 
+# Koadrila coefficient tensor and index
+def koadrila(G):
+    
+    W = nx.to_numpy_array(G) # Weighted adjacency matrix
+    K = np.zeros(shape=(W.shape[0], W.shape[0], W.shape[0])) # 3d tensor
+    for (i,j,k), _ in np.ndenumerate(K):
+        if W[i,j] == 0 or W[i,k] == 0:
+            K[i,j,k] = -1 # No defined for those 
+        if i != j and i != k:
+            K[i,j,k] = 2 * W[j,k] / (W[i,j] + W[i,k])
+        else:
+            continue # defaults to 0
+    
+    koadrila_index = [0] * W.shape[0]
+    for i, Ki in enumerate(K):
+        koadrila_index[i] = np.mean(Ki[Ki>0])
+    
+    return K, koadrila_index
+                
+        
+        
+
 
 """
 TODO:
     - Manage plots better. Maybe save figs.
-    - Some plots are identical! E.g., asianelephants and baboons. WHY??
     - Sometimes the normalization is a division by zero. Check!
     - Problems with ego nets of ants, beetles, baboons, voles and tortoises: measurements of same colony (group) for different days (subgroups) have different amount of individuals, and ego networks cannot be aggregated
 
 """ 
 
 
-plt.figure()
-plt.title('exponents')
-plt.scatter(x = df_nets[df_nets['exponent'] < 0]['taxa'], y = df_nets[df_nets['exponent'] < 0]['exponent'])
-
-plt.savefig('exponent_taxa.png')
