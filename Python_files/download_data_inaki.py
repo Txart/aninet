@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+
 def _group_segmentation(fn):
     """
 
@@ -75,6 +76,7 @@ def read_animals_database():
             
             for filename in sorted(os.listdir(os.path.abspath('../Networks/'+mydir+'/'+subdir))):
                 di = {}
+                
                 if filename.endswith(".graphml"):
                     print ("filename ............", filename)
                     
@@ -103,6 +105,9 @@ def read_animals_database():
                     di['filename'] = filename
                     di['ego_net'] = None # these are set up later
                     di['ego_net_std'] = None
+                    di['exponent'] = None
+                    di['intercept'] = None
+                    di['r2'] = None
                     networks.append(di)
      
 
@@ -187,6 +192,37 @@ def plot_ego_barplot(ego_array, std, title):
     plt.figure()
     plt.bar(x=np.arange(1,ego_array.shape[0]+1), height=ego_array, yerr=std)
     plt.title(title)
+    
+def exponent_linear_regression(ego_values):
+    """
+    Assumes exponential decrease in ego_values and performs linear regression of the log
+    (i.e., computes the exponent)
+    
+    Parameters
+    ----------
+    ego_values : np.array
+        Values of the ego barplot for each alter
+
+    Returns
+    -------
+    slope, intercept, r_squared: float
+        Usual linear regression coeffs. 'slope' is the best-fitting exponent. 
+
+    """
+
+    from sklearn.linear_model import LinearRegression
+    
+    x = np.array(range(0, ego_values.size)).reshape((-1,1)) 
+    y = np.log(ego_values)
+    
+    model = LinearRegression().fit(x,y)
+    
+    slope = model.coef_[0]
+    intercept = model.intercept_
+    r_squared = model.score(x, y)
+    
+    return slope, intercept, r_squared
+
 
 
 """
@@ -197,10 +233,16 @@ df_info, df_nets = read_animals_database()
 
 # Generate ego matrices and store them in dataframe
 for index, row in df_nets.iterrows():
-    row['ego_net'], row['ego_net_std'] = get_ego_matrix(row['graph']) # Some are empty, so normalization throws error. Check!!
+    ego_net, ego_net_std = get_ego_matrix(row['graph']) # Some are empty, so normalization throws error. Check!!
+    df_nets['ego_net'].values[index] = ego_net
+    df_nets['ego_net_std'].values[index] = ego_net_std
 
+# Loop over species. Implemented computations:
+##### - Ego network plots (over a hunderd in total)
+##### - Linear regression of exponent (assuming ego net plots are exponential)
 
-# Ego plots aggregated accross species
+PLOT_EGO = False
+
 plt.close('all')
 species_labels = df_nets.species.unique()
 
@@ -220,15 +262,28 @@ for s in species_labels:
         try:
             ego_mean = np.mean(ego_nets, axis=0)
             ego_std_group = np.std(ego_nets, axis=0) # Careful! There are two std, 1) at the level of single-measurement, 2) at the level of groups (more than one measurements, more than one graphfiles)!
-            if not np.any(ego_std_group): # if std at the group level is zero, i.e., if there are no groups
-                plot_ego_barplot(ego_mean, std=ego_net_stds_vstack, title=s + group)
-            else: # if more than one group, plot group-wise std. Here group means  a bunch of measurements of a same species with same relevant attributes.
-                plot_ego_barplot(ego_mean, std=ego_std_group, title=s + group)
+            
+            # Linear regression
+            expo, inter, r2 = exponent_linear_regression(np.trim_zeros(ego_mean,trim='b'))
+            
+            df_nets.loc[df_nets['group'] == group, ['exponent']] = expo
+            df_nets.loc[df_nets['group'] == group, ['intercept']] = inter
+            df_nets.loc[df_nets['group'] == group, ['r2']] = r2
+            
+            # Plot
+            if PLOT_EGO:
+                if not np.any(ego_std_group): # if std at the group level is zero, i.e., if there are no groups
+                    plot_ego_barplot(ego_mean, std=ego_net_stds_vstack, title=s + group)
+                else: # if more than one group, plot group-wise std. Here group means  a bunch of measurements of a same species with same relevant attributes.
+                    plot_ego_barplot(ego_mean, std=ego_std_group, title=s + group)
+            else:
+                continue
         except:
             print('>>>>>>>> ERROR in {} species. Probably, there is a mismatch in number of individuals accross measurements'.format(s))
             continue
 
-        
+
+ 
 
 """
 TODO:
@@ -240,4 +295,8 @@ TODO:
 """ 
 
 
+plt.figure()
+plt.title('exponents')
+plt.scatter(x = df_nets[df_nets['exponent'] < 0]['taxa'], y = df_nets[df_nets['exponent'] < 0]['exponent'])
 
+plt.savefig('exponent_taxa.png')
