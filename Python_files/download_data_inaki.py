@@ -250,7 +250,7 @@ for index, row in df_nets.iterrows():
 ##### - Ego network plots (over a hunderd in total)
 ##### - Linear regression of exponent (assuming ego net plots are exponential)
 
-PLOT_EGO = False
+PLOT_EGO = True
 
 plt.close('all')
 species_labels = df_nets.species.unique()
@@ -292,12 +292,12 @@ for s in species_labels:
             continue
         
 # plot the ones excluded above one by one
-ant_colony = df_nets[df_nets['group'] == 'colony6']
-elephant_seal = df_nets[df_nets['species']=='elephantseal_dominance_weighted']
-beetle_C1 = df_nets[df_nets['group']=='C1']
-a = beetle_C1
-for day, i in enumerate(a.ego_net.to_numpy()):
-    plot_ego_barplot(i, std=0, title='Animal'.format(day))
+# ant_colony = df_nets[df_nets['group'] == 'colony6']
+# elephant_seal = df_nets[df_nets['species']=='elephantseal_dominance_weighted']
+# beetle_C1 = df_nets[df_nets['group']=='C1']
+# a = ant_colony
+# for day, i in enumerate(a.ego_net.to_numpy()):
+#     plot_ego_barplot(i, std=0, title='Ant_colony6'.format(day))
 
 # plot exponent values
 plot_exponents(df_nets)
