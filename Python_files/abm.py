@@ -87,4 +87,16 @@ np.fill_diagonal(proximity_adj_matrix, 0) # Remove self-loops
 ego_mean, ego_std = get_ego(proximity_adj_matrix)
 plot_ego_barplot(ego_mean, ego_std, title='random agents')
 
-            
+
+"""
+Random array measurements
+"""
+random_array = np.random.rand(N_AGENTS, N_AGENTS)
+np.fill_diagonal(random_array, 0)
+rnd_ego_mean, rnd_ego_std = get_ego(random_array)
+plot_ego_barplot(rnd_ego_mean, rnd_ego_std, title='random uniform array')
+
+normal_array = np.random.normal(loc=1, scale=0.2, size=(N_AGENTS, N_AGENTS))
+np.fill_diagonal(normal_array, 0)
+normal_ego_mean, normal_ego_std = get_ego(normal_array)
+plot_ego_barplot(normal_ego_mean, normal_ego_std, title='random normal array')
