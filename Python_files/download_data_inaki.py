@@ -109,6 +109,8 @@ def read_animals_database():
                     di['exponent'] = None
                     di['intercept'] = None
                     di['r2'] = None
+                    di['koadrila_tensor'] = None
+                    di['koadrila_indices'] = None
                     networks.append(di)
      
 
@@ -140,7 +142,8 @@ def read_animals_database():
         'group': 'NoGroup',
         'subgroup': 'NoSubgroup',
         'ego_net': None, # these are set up later
-        'ego_net_std':None})               
+        'ego_net_std':None,
+        'exponent':None})               
     
     df_networks = pd.DataFrame(networks)
                     
@@ -194,6 +197,29 @@ def plot_ego_barplot(ego_array, std, title):
     plt.bar(x=np.arange(1,ego_array.shape[0]+1), height=ego_array, yerr=std)
     plt.title(title)
     
+def plot_ego_log_scale(ego_array, label, taxa):
+    if taxa == 'Actinopterygii':
+        positioner = (0,0)
+    elif taxa == 'Aves':
+        positioner = (0,1)
+    elif taxa == 'Reptilia':
+        positioner = (0,2)
+    elif taxa == 'Insecta':
+        positioner = (1,0)
+    elif taxa == 'Mammalia':
+        positioner = (1,1)
+        
+    taxa_color = {'Actinopterygii': 'blue', 'Aves': 'orange', 'Insecta':'black', 'Mammalia':'red', 'Reptilia':'green' }
+    ax[positioner].semilogy(ego_array, 'x', label=taxa, color=taxa_color[taxa], alpha=0.9 if taxa=='Actinopterygii' else 0.3)
+    ax[positioner].set_ylim([1e-6, 1])
+    ax[positioner].set_xlim([0,110])
+    ax[positioner].set_title(taxa)
+    
+def legend_without_duplicate_labels(ax):
+    handles, labels = ax.get_legend_handles_labels()
+    unique = [(h, l) for i, (h, l) in enumerate(zip(handles, labels)) if l not in labels[:i]]
+    ax.legend(*zip(*unique))
+    
 def plot_exponents(df_nets):
     plt.figure()
     plt.title('exponents')
@@ -233,6 +259,24 @@ def exponent_linear_regression(ego_values):
     return slope, intercept, r_squared
 
 
+# Made-up koadrila coefficient tensor and index
+def koadrila(G):
+    
+    W = nx.to_numpy_array(G) # Weighted adjacency matrix
+    K = np.zeros(shape=(W.shape[0], W.shape[0], W.shape[0])) # 3d tensor
+    for (i,j,k), _ in np.ndenumerate(K):
+        if W[i,j] == 0 or W[i,k] == 0:
+            K[i,j,k] = -1 # No defined for those 
+        if i != j and i != k:
+            K[i,j,k] = 2 * W[j,k] / (W[i,j] + W[i,k])
+        else:
+            continue # defaults to 0
+    
+    koadrila_index = [0] * W.shape[0]
+    for i, Ki in enumerate(K):
+        koadrila_index[i] = np.mean(Ki[Ki>0])
+    
+    return K, koadrila_index
 
 """
 #####
@@ -245,6 +289,9 @@ for index, row in df_nets.iterrows():
     ego_net, ego_net_std = get_ego_matrix(row['graph']) # Some are empty, so normalization throws error. Check!!
     df_nets['ego_net'].values[index] = ego_net
     df_nets['ego_net_std'].values[index] = ego_net_std
+    k_t, k_i = koadrila(row['graph'])
+    # df_nets['koadrila_tensor'].values[index] = k_t
+    # df_nets['koadrila_indices'].values[index] = k_i
 
 # Loop over species. Implemented computations:
 ##### - Ego network plots (over a hunderd in total)
@@ -254,6 +301,7 @@ PLOT_EGO = True
 
 plt.close('all')
 species_labels = df_nets.species.unique()
+fig,ax = plt.subplots(2,3)
 
 for s in species_labels:
     if 'ants' in s or 'beetle' in s or 'baboon_association' in s or 'voles' in s or 'tortoise' in s: # Skip ants, beetles, baboons, voles and tortoises for now. Problem: measurements of same colony (group) for different days (subgroups) have different amount of individuals
@@ -281,15 +329,19 @@ for s in species_labels:
             
             # Plot
             if PLOT_EGO:
+                
                 if not np.any(ego_std_group): # if std at the group level is zero, i.e., if there are no groups
-                    plot_ego_barplot(ego_mean, std=ego_net_stds_vstack, title=s + group)
+                    # plot_ego_barplot(ego_mean, std=ego_net_stds_vstack, title=s + group)
+                    plot_ego_log_scale(ego_mean, label=s+group, taxa=df_species.taxa.values[0] )
                 else: # if more than one group, plot group-wise std. Here group means  a bunch of measurements of a same species with same relevant attributes.
-                    plot_ego_barplot(ego_mean, std=ego_std_group, title=s + group)
+                    # plot_ego_barplot(ego_mean, std=ego_std_group, title=s + group)
+                    plot_ego_log_scale(ego_mean, label=s+group, taxa=df_species.taxa.values[0])
             else:
                 continue
         except:
             print('>>>>>>>> ERROR in {} species. Probably, there is a mismatch in number of individuals accross measurements'.format(s))
             continue
+# legend_without_duplicate_labels(ax)
         
 # plot the ones excluded above one by one
 # ant_colony = df_nets[df_nets['group'] == 'colony6']
@@ -303,24 +355,7 @@ for s in species_labels:
 plot_exponents(df_nets)
 
 
-# Koadrila coefficient tensor and index
-def koadrila(G):
-    
-    W = nx.to_numpy_array(G) # Weighted adjacency matrix
-    K = np.zeros(shape=(W.shape[0], W.shape[0], W.shape[0])) # 3d tensor
-    for (i,j,k), _ in np.ndenumerate(K):
-        if W[i,j] == 0 or W[i,k] == 0:
-            K[i,j,k] = -1 # No defined for those 
-        if i != j and i != k:
-            K[i,j,k] = 2 * W[j,k] / (W[i,j] + W[i,k])
-        else:
-            continue # defaults to 0
-    
-    koadrila_index = [0] * W.shape[0]
-    for i, Ki in enumerate(K):
-        koadrila_index[i] = np.mean(Ki[Ki>0])
-    
-    return K, koadrila_index
+
                 
         
         
