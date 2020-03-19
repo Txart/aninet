@@ -41,12 +41,17 @@ def analyse_graph(path):
         number_of_nodes = G.number_of_nodes()
         number_of_edges = G.number_of_edges()
         number_of_commu = len(sorted_commu)
+        ratio_nc = number_of_nodes/number_of_commu
+        ratio_ec = number_of_edges/number_of_commu
+        ratio_ne = number_of_nodes/number_of_edges
         print("Number of nodes : "+str(number_of_nodes))
         print("Number of edges : "+str(number_of_edges))
         print("Number of communities : "+str(number_of_commu))
-        print("Nodes / Communities ratio = "+str(number_of_nodes/number_of_commu))
-        print("Edges / Communities ratio = "+str(number_of_edges/number_of_commu))
-        print("Nodes / Edges = "+str(number_of_nodes/number_of_edges))
+        print("Nodes / Communities ratio = "+str(ratio_nc))
+        print("Edges / Communities ratio = "+str(ratio_ec))
+        print("Nodes / Edges = "+str(ratio_ne))
+        with open("data.log", "a") as log:
+            log.write(path.split('/')[-1]+" "+str(number_of_nodes)+" "+str(number_of_edges)+" "+str(number_of_commu)+" "+str(ratio_nc)+" "+str(ratio_ec)+" "+str(ratio_ne)+"\n")
 
         #top_level_commu = next(commu)
         #next_level_commu = next(commu)
@@ -71,7 +76,7 @@ def analyse_graph(path):
                     color_map.append(20*i)
         nx.draw(G, node_color=color_map, with_labels=True, font_weight='bold')
         
-        plt.show()
+        #plt.show()
 
 root = subprocess.run(['pwd'], stdout=subprocess.PIPE).stdout.decode('utf-8')
 print(root.split('/')[1:-1])
@@ -89,6 +94,9 @@ for r, d, f in os.walk(file_path):
     for item in f:
         if 'graphml' in item:
             files_in_dir.append(os.path.join(r, item))
+
+with open("data.log", "w") as log:
+    pass
 for item in sorted(files_in_dir):
     print("Graph under dir: ", item)
     analyse_graph(item)
