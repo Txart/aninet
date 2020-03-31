@@ -216,6 +216,13 @@ def plot_ego_barplot(ego_array, std, title):
     plt.bar(x=np.arange(1,ego_array.shape[0]+1), height=ego_array, yerr=std)
     plt.title(title)
     
+def single_ego_logplot(ego_array, std, title):
+    fig,ax = plt.subplots()
+    ax.semilogy(ego_array, 'x')
+    ax.set_ylim([1e-6, 1])
+    ax.set_xlim([0,ego_array.size])
+    ax.set_title(title)
+    
 def plot_ego_log_scale(ego_array, label, taxa):
     if taxa == 'Actinopterygii':
         positioner = (0,0)
@@ -398,13 +405,99 @@ for index, row in df_nets.iterrows():
 # plot exponent values
 plot_exponents(df_nets)
 
+#%%
+# Baboon time evolution ego plot
+def read_baboon_df():
+    baboon_fn = os.path.abspath('../baboons/RFID_data/RFID_data.txt') 
+    with open(baboon_fn, 'rb'):
+        df_bab = pd.read_csv(baboon_fn, delim_whitespace=True)
+    return df_bab
 
-     
+def time_evolution_baboon_ego_plot(n_partitions, df_bab):
+    """
+    Divides baboon data into n_partitions temporal partitions. Returns ego array of each.
+
+    Parameters
+    ----------
+    n_partitions : int
+        1st partition contains the ego array corresponding to the baboon network
+        recorded during the first total_length/n_partitions
+        2nd partition contains 1st + second
+
+    Returns
+    -------
+    list with ego array of all partitions
+
+    """
+    # aggregated network. No weights  
+    G_bab_aggr = nx.from_pandas_edgelist(df=df_bab, source='i', target='j')
+        
+    experiment_time = df_bab.t.max() - df_bab.t.min()
+    partition_time = int(experiment_time / n_partitions)
+    end_times = [df_bab.t.min() + partition_time*i for i in range(1, n_partitions+1)]
+    ego_net_partitions = []
+    
+    for end_time in end_times:
+        df_bab_partitioned = df_bab[df_bab.t < end_time]
+        G_bab = nx.Graph()
+        G_bab.add_nodes_from(list(G_bab_aggr.nodes))
+        for index, row in df_bab_partitioned.iterrows():
+            if G_bab.has_edge(row.i, row.j):
+                G_bab[row.i][row.j]['weight'] += 1.
+            else:
+                G_bab.add_edge(row.i, row.j, t=row.t, Date=row.Date, Time=row.Time, weight=1.)
+    
+        ego_net, _ = get_ego_matrix(G_bab)
+        ego_net_partitions.append(ego_net)
+    
+    return ego_net_partitions
 
 
- 
+
+df_bab = read_baboon_df()
+bab_ego_net_time_evolution = time_evolution_baboon_ego_plot(n_partitions=16, df_bab=df_bab)
 
 
+#%%
+fig, ax = plt.subplots(4,4)
+for i, axis in enumerate(ax.flatten()):
+    axis.bar(x=np.arange(1,len(bab_ego_net_time_evolution[0])+1), height=bab_ego_net_time_evolution[i])
+    axis.set_ylim([0, .4])
+    axis.set_title(f'cum_part {i+1} baboons')
+plt.tight_layout()
+    
+
+#%%
+def read_primary_children_data():  
+    df_child = pd.read_csv('../primary_school/primaryschool.csv', sep='\t',engine='python')
+    return df_child
+
+def get_primary_children_graph(df_child):
+     # aggregated network. No weights  
+    G_child_aggr = nx.from_pandas_edgelist(df=df_child, source='i', target='j')
+    
+    # Network with weights. Each interaction corresponds to a weight. The weight is saved as an attribute.
+    G_child = nx.Graph()
+    G_child.add_nodes_from(list(G_child_aggr.nodes))
+    for index, row in df_child.iterrows():
+        if G_child.has_edge(row.i, row.j):
+            G_child[row.i][row.j]['weight'] += 1.
+        else:
+            G_child.add_edge(row.i, row.j, t=row.t, weight=1.)
+    
+    return G_child
+
+df_child = read_primary_children_data()
+
+G_child = get_primary_children_graph(df_child)
+
+#%%
+# Ego network and plots
+ego_child, ego_std_child = get_ego_matrix(G_child)
+plot_ego_barplot(ego_child, ego_std_child, 'primary school children')
+single_ego_logplot(ego_child, ego_std_child, 'primary logplot')
+
+#%%
 """
 TODO:
     - Manage plots better. Maybe save figs.
