@@ -1,2 +1,3 @@
 Python_files/venv/**
 .vscode/**
+Python_files/__pycache__
