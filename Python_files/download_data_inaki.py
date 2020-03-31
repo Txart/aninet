@@ -13,6 +13,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 
+
 def _group_segmentation(fn):
     """
 
@@ -95,22 +96,39 @@ def read_animals_database():
                     for (n1, n2) in list(G.edges):
                         if G[n1][n2]['weight']==0: 
                             G.remove_edge(n1,n2)
-                    # Group and subgroup differentiation
+                    
+                    G_un = G.to_undirected()
+                    
+                    # Group and subgroup differentiation                    
                     group, subgroup = _group_segmentation(filename)
+                    ego_net, ego_net_std = get_ego_matrix(G) # Some are empty, so normalization throws error. Check!!
+                    cl = nx.clustering(G, weight='weight') # Weighted clustering coeff. by Onnela
+                    cl_un = nx.average_clustering(G_un)
+                    
                     di['graph'] = G
                     di['taxa'] = mydir
                     di['species'] = subdir
                     di['group'] = group
                     di['subgroup'] = subgroup # further group segmentation, mentioned above
                     di['filename'] = filename
-                    di['clustering'] = nx.clustering(G, weight='weight') # Weighted clustering coeff. by Onnela
-                    di['ego_net'] = None # these are set up later
-                    di['ego_net_std'] = None
+                    di['undirected_clustering_mean'] = cl_un
+                    di['clustering'] = cl
+                    di['clustering_mean'] = np.mean(list(cl.values()))
+                    di['clustering_std'] = np.std(list(cl.values()))
+                    di['ego_net'] = ego_net
+                    di['ego_net_std'] = ego_net_std
                     di['exponent'] = None
                     di['intercept'] = None
                     di['r2'] = None
-                    di['koadrila_tensor'] = None
-                    di['koadrila_indices'] = None
+                    if 'tortoiseR_sah'  not in filename: # takes too long (maybe error)
+                        di['koadrila_tensor'] = None
+                        di['koadrila_indices'] = None
+                        di['koadrila_mean'] = None
+                    else:
+                        k_t, k_i = koadrila(G) # it is not efficient.
+                        di['koadrila_tensor'] = k_t
+                        di['koadrila_indices'] = k_i
+                        di['koadrila_mean'] = np.mean(k_i)
                     networks.append(di)
      
 
@@ -186,6 +204,7 @@ def get_ego_matrix(graph):
     
     norm_factor = np.multiply(np.sum(A,axis=0), np.ones(shape=A.shape)).transpose()
     A_norm = np.divide(A, norm_factor) # vector type normalization to save time
+    A_norm = np.nan_to_num(A_norm)
     A_norm_ordered = np.flip(np.sort(A_norm), axis=-1) # order each row from highest to lowest. 
     group_mean_array = np.mean(A_norm_ordered, axis=0)
     group_std_array = np.std(A_norm_ordered, axis=0)
@@ -223,9 +242,8 @@ def legend_without_duplicate_labels(ax):
 def plot_exponents(df_nets):
     plt.figure()
     plt.title('exponents')
-    plt.scatter(x = df_nets[df_nets['exponent'] < 0]['taxa'], y = df_nets[df_nets['exponent'] < 0]['exponent'])
-    
-    plt.savefig('exponent_taxa.png')
+    plt.scatter(x = df_nets[df_nets['exponent'] < 0]['taxa'], y = df_nets[df_nets['exponent'] < 0]['exponent'], alpha = 0.7, marker='x')
+
     
     
 def exponent_linear_regression(ego_values):
@@ -264,9 +282,10 @@ def koadrila(G):
     
     W = nx.to_numpy_array(G) # Weighted adjacency matrix
     K = np.zeros(shape=(W.shape[0], W.shape[0], W.shape[0])) # 3d tensor
+    tol = 1e-3
     for (i,j,k), _ in np.ndenumerate(K):
-        if W[i,j] == 0 or W[i,k] == 0:
-            K[i,j,k] = -1 # No defined for those 
+        if W[i,j] < tol or W[i,k] < tol:
+            K[i,j,k] = -1 # Not defined for those 
         if i != j and i != k:
             K[i,j,k] = 2 * W[j,k] / (W[i,j] + W[i,k])
         else:
@@ -276,7 +295,7 @@ def koadrila(G):
     for i, Ki in enumerate(K):
         koadrila_index[i] = np.mean(Ki[Ki>0])
     
-    return K, koadrila_index
+    return np.array(K), np.array(koadrila_index)
 
 """
 #####
@@ -285,13 +304,16 @@ def koadrila(G):
 df_info, df_nets = read_animals_database()
 
 # Generate ego matrices and store them in dataframe
-for index, row in df_nets.iterrows():
-    ego_net, ego_net_std = get_ego_matrix(row['graph']) # Some are empty, so normalization throws error. Check!!
-    df_nets['ego_net'].values[index] = ego_net
-    df_nets['ego_net_std'].values[index] = ego_net_std
-    k_t, k_i = koadrila(row['graph'])
-    # df_nets['koadrila_tensor'].values[index] = k_t
-    # df_nets['koadrila_indices'].values[index] = k_i
+# for index, row in df_nets.iterrows():
+    
+#     df_nets['ego_net'].values[index] = ego_net
+#     df_nets['ego_net_std'].values[index] = ego_net_std
+#     try:
+        
+#     except:
+#         print('problem with row number: ',index)
+#     # df_nets['koadrila_tensor'].values[index] = k_t
+#     df_nets['koadrila_indices'].values[index] = k_i
 
 # Loop over species. Implemented computations:
 ##### - Ego network plots (over a hunderd in total)
@@ -341,6 +363,25 @@ for s in species_labels:
         except:
             print('>>>>>>>> ERROR in {} species. Probably, there is a mismatch in number of individuals accross measurements'.format(s))
             continue
+
+# Linear regression graph by graph for excluded species
+# And plot of insecta regression
+f, ax = plt.subplots()
+ax.set_ylim([1e-6, 1])
+ax.set_xlim([0,110])
+ax.set_title('Reptilia') 
+for index, row in df_nets.iterrows():
+    if row.taxa == 'Reptilia':
+        ax.semilogy(row.ego_net, 'x', label='Reptilia', color='green', alpha=0.3)
+    s = row.species
+    if 'ants' in s or 'beetle' in s or 'baboon_association' in s or 'voles' in s or 'tortoise' in s:
+        print(s)
+        ego_net = row.ego_net
+        expo, inter, r2 = exponent_linear_regression(np.trim_zeros(ego_net, trim='b'))
+        df_nets.loc[index,'exponent'] = expo
+        df_nets.loc[index,'intercept'] = inter
+        df_nets.loc[index,'r2'] = r2
+
 # legend_without_duplicate_labels(ax)
         
 # plot the ones excluded above one by one
@@ -351,14 +392,17 @@ for s in species_labels:
 # for day, i in enumerate(a.ego_net.to_numpy()):
 #     plot_ego_barplot(i, std=0, title='Ant_colony6'.format(day))
 
+# 
+
+
 # plot exponent values
 plot_exponents(df_nets)
 
 
+     
 
-                
-        
-        
+
+ 
 
 
 """
