@@ -105,9 +105,21 @@ def read_animals_database():
                     cl = nx.clustering(G, weight='weight') # Weighted clustering coeff. by Onnela
                     cl_un = nx.average_clustering(G_un)
                     
+                    # centrality measures
+                    eig_c_dict = nx.eigenvector_centrality_numpy(G, weight='weight')
+                    eig_c = np.array([eig_c_dict[node] for node in eig_c_dict])
+                    bet_c_dict =  nx.betweenness_centrality(G, weight='weight')
+                    bet_c = np.array([bet_c_dict[node] for node in bet_c_dict])
+                    
+                    # exponents
+                    expo, inte, r2 = exponent_linear_regression(np.trim_zeros(ego_net, trim='b'))
+                    
                     di['graph'] = G
                     di['taxa'] = mydir
                     di['species'] = subdir
+                    # name of the species in the other dataset 
+                    di['species_name'] = df_info[df_info.graphfile==filename].Species.values[0] if len(df_info[df_info.graphfile==filename].Species.values) != 0 else None
+                    di['Interaction type'] = df_info[df_info.graphfile==filename]['Interaction type'].values[0] if len(df_info[df_info.graphfile==filename]['Interaction type'].values) != 0 else None
                     di['group'] = group
                     di['subgroup'] = subgroup # further group segmentation, mentioned above
                     di['filename'] = filename
@@ -117,24 +129,34 @@ def read_animals_database():
                     di['clustering_std'] = np.std(list(cl.values()))
                     di['ego_net'] = ego_net
                     di['ego_net_std'] = ego_net_std
-                    di['exponent'] = None
-                    di['intercept'] = None
-                    di['r2'] = None
-                    if 'tortoiseR_sah'  not in filename: # takes too long (maybe error)
-                        di['koadrila_tensor'] = None
-                        di['koadrila_indices'] = None
-                        di['koadrila_mean'] = None
-                    else:
-                        k_t, k_i = koadrila(G) # it is not efficient.
-                        di['koadrila_tensor'] = k_t
-                        di['koadrila_indices'] = k_i
-                        di['koadrila_mean'] = np.mean(k_i)
+                    di['ego_net_gini'] = gini(ego_net)
+                    di['exponent'] = expo
+                    di['intercept'] = inte
+                    di['r2'] = r2
+                    # if 'tortoiseR_sah'  not in filename: # takes too long (maybe error)
+                    #     di['koadrila_tensor'] = None
+                    #     di['koadrila_indices'] = None
+                    #     di['koadrila_mean'] = None
+                    # else:
+                    #     k_t, k_i = koadrila(G) # it is not efficient.
+                    #     di['koadrila_tensor'] = k_t
+                    #     di['koadrila_indices'] = k_i
+                    #     di['koadrila_mean'] = np.mean(k_i)
+                    mdc = modified_degree_centrality(G)
+                    di['mod_deg_centrality'] = mdc
+                    di['mod_deg_mean'] = np.mean(mdc)
+                    di['deg_cen_gini'] = gini(mdc)
+                    di['eigenvector_centrality'] = eig_c
+                    di['betweenness_centrality'] = bet_c
+                    di['bet_cen_mean'] = np.mean(bet_c)
+                    di['bet_cen_gini'] = gini(bet_c)
                     networks.append(di)
      
 
     """
-    Add baboon separate data
+    Add baboon and primary school children separate data
     """
+    # baboons
     baboon_fn = os.path.abspath('../baboons/RFID_data/RFID_data.txt') 
     
     with open(baboon_fn, 'rb'):
@@ -151,7 +173,34 @@ def read_animals_database():
         else:
             G_bab.add_edge(row.i, row.j, t=row.t, Date=row.Date, Time=row.Time, weight=1.)
     
-    ego_net, ego_net_std = get_ego_matrix(G_bab)
+    # children
+    df_child = read_primary_children_data()
+    G_child = get_primary_children_graph(df_child)
+    
+    # measures
+    bab_ego_net, bab_ego_net_std = get_ego_matrix(G_bab)
+    child_ego_net, child_ego_net_std = get_ego_matrix(G_child)
+    
+    cbab = nx.eigenvector_centrality_numpy(G_bab, weight='weight')
+    bab_eig_c = np.array([cbab[node] for node in cbab]) # eigenvector centrality
+    cchild = nx.eigenvector_centrality_numpy(G_child, weight='weight')
+    child_eig_c = np.array([cchild[node] for node in cchild]) # eigenvector centrality
+    
+    bab_bet_c_dict =  nx.betweenness_centrality(G_bab, weight='weight')
+    bab_bet_c = np.array([bab_bet_c_dict[node] for node in bab_bet_c_dict])
+    child_bet_c_dict =  nx.betweenness_centrality(G_child, weight='weight')
+    child_bet_c = np.array([child_bet_c_dict[node] for node in child_bet_c_dict])
+    
+    clbab = nx.clustering(G_bab, weight='weight') # Weighted clustering coeff. by Onnela
+    clchild = nx.clustering(G_child, weight='weight') # Weighted clustering coeff. by Onnela
+    
+    mdc_bab = modified_degree_centrality(G_bab)
+    mdc_child = modified_degree_centrality(G_child)
+    
+    expo_bab, inte_bab, r2_bab = exponent_linear_regression(np.trim_zeros(bab_ego_net, trim='b'))
+    expo_child, inte_child, r2_child = exponent_linear_regression(np.trim_zeros(child_ego_net, trim='b'))
+    
+    # baboons 
     networks.append({
         'graph': G_bab,
         'taxa': 'Mammalia',
@@ -159,9 +208,53 @@ def read_animals_database():
         'filename': 'baboon_separate_dataset',
         'group': 'NoGroup',
         'subgroup': 'NoSubgroup',
-        'ego_net': None, # these are set up later
-        'ego_net_std':None,
-        'exponent':None})               
+        'Interaction type' : 'spatial proximity',
+        'ego_net': bab_ego_net, # these are set up later
+        'ego_net_std':bab_ego_net_std,
+        'exponent':expo_bab,
+        'intercept' : inte_bab,
+        'r2' : r2_bab,
+        'eigenvector_centrality': bab_eig_c,
+        'betweenness_centrality': bab_bet_c,
+        'clustering' : clbab,
+        'clustering_mean' : np.mean(list(clbab.values())),
+        'clustering_std' : np.std(list(clbab.values())),
+        'ego_net_gini' : gini(bab_ego_net),
+        'mod_deg_centrality' : mdc_bab,
+        'mod_deg_mean' : np.mean(mdc_bab),
+        'deg_cen_gini' : gini(mdc_bab),
+        'bet_cen_gini' : gini(bab_bet_c),
+        'bet_cen_mean' : np.mean(bab_bet_c)
+        })
+    
+    # children
+    networks.append({
+        'graph': G_child,
+        'taxa': 'Mammalia',
+        'species' : 'primary_school_children',
+        'filename': 'primary_school_children',
+        'group': 'NoGroup',
+        'subgroup': 'NoSubgroup',
+        'Interaction type' : 'spatial proximity',
+        'ego_net': child_ego_net, # these are set up later
+        'ego_net_std':child_ego_net_std,
+        'exponent':expo_child,
+        'intercept' : inte_child,
+        'r2' : r2_child,
+        'eigenvector_centrality': child_eig_c,
+        'betweenness_centrality': child_bet_c,
+        'clustering' : clchild,
+        'clustering_mean' : np.mean(list(clchild.values())),
+        'clustering_std' : np.std(list(clchild.values())),
+        'ego_net_gini' : gini(child_ego_net),
+        'mod_deg_centrality' : mdc_child,
+        'mod_deg_mean' : np.mean(mdc_child),
+        'deg_cen_gini' : gini(mdc_child),
+        'bet_cen_gini' : gini(child_bet_c),
+        'bet_cen_mean' : np.mean(child_bet_c)
+        })    
+    
+    
     
     df_networks = pd.DataFrame(networks)
                     
@@ -304,106 +397,190 @@ def koadrila(G):
     
     return np.array(K), np.array(koadrila_index)
 
+def modified_degree_centrality(G):
+    """
+    Usual degree centrality (at least the one implemented in networkx)
+    for multigraphs is:
+        # edges of node / # total possible edges in unweighted network.
+    I think that definition is not particularly useful for some of the
+    networks we have because if measured for a long time, then every 
+    node will have a large degree centrality. The quantity this function
+    computes is:
+        # edges of node / # total edges in network.
+    """
+    A = nx.to_numpy_array(G)
+    return 2. * np.sum(A, axis=1)/np.sum(A)
+
+def read_primary_children_data():  
+    df_child = pd.read_csv('../primary_school/primaryschool.csv', sep='\t',engine='python')
+    return df_child
+
+def get_primary_children_graph(df_child):
+     # aggregated network. No weights  
+    G_child_aggr = nx.from_pandas_edgelist(df=df_child, source='i', target='j')
+    
+    # Network with weights. Each interaction corresponds to a weight. The weight is saved as an attribute.
+    G_child = nx.Graph()
+    G_child.add_nodes_from(list(G_child_aggr.nodes))
+    for index, row in df_child.iterrows():
+        if G_child.has_edge(row.i, row.j):
+            G_child[row.i][row.j]['weight'] += 1.
+        else:
+            G_child.add_edge(row.i, row.j, t=row.t, weight=1.)
+    
+    return G_child
+
+def gini(c):
+    """
+    Gini coef. calculation https://en.wikipedia.org/wiki/Gini_coefficient
+    Gini = 0 -> most equal distribution
+    Gini = 1 -> most unequal distribution
+
+    Parameters
+    ----------
+    c : 1d numpy array
+        centrality measure for each individual
+
+    Returns
+    -------
+    gini : float
+        Gini coefficient
+
+    """
+    c_row = np.tile(c, (len(c), 1)) # an array where each row is the c vector
+    c_col = c_row.T
+    numerator = np.sum(abs(c_col - c_row))
+    denominator = 2 * len(c)**2 * np.mean(c)
+    gini = numerator / denominator
+    
+    return gini
+
+#%%
+
 """
-#####
+### READ DATABASE AND ADD COLUMNS FROM df_info
 """
-# Read data
+
 df_info, df_nets = read_animals_database()
 
-# Generate ego matrices and store them in dataframe
-# for index, row in df_nets.iterrows():
-    
-#     df_nets['ego_net'].values[index] = ego_net
-#     df_nets['ego_net_std'].values[index] = ego_net_std
-#     try:
-        
-#     except:
-#         print('problem with row number: ',index)
-#     # df_nets['koadrila_tensor'].values[index] = k_t
-#     df_nets['koadrila_indices'].values[index] = k_i
+# Add measurements from df_info
+set_info_names = set(df_info.graphfile.to_list())
+graphs_in_nets_but_not_in_info = set([row.filename  for i,row in df_nets.iterrows() if row.filename not in set_info_names])
 
+# column names to copy from df_info
+di = {'Transitivity': [],
+      'Degree assortativity': [],
+      'Newman modularity (Q)': [],
+      'Network cohesion': []}
+
+for i, row in df_nets.iterrows():
+    
+    if row.filename in graphs_in_nets_but_not_in_info:
+        di['Transitivity'].append(None)
+        di['Degree assortativity'].append(None)
+        di['Newman modularity (Q)'].append(None)
+        di['Network cohesion'].append(None)
+    else:
+        di['Transitivity'].append(df_info[df_info.graphfile == row.filename].Transitivity.values[0])
+        di['Degree assortativity'].append(df_info[df_info.graphfile == row.filename]['Degree assortativity'].values[0])
+        di['Newman modularity (Q)'].append(df_info[df_info.graphfile == row.filename]['Newman modularity (Q)'].values[0])
+        di['Network cohesion'].append(df_info[df_info.graphfile == row.filename]['Network cohesion'].values[0])
+
+
+for key in di:
+    df_nets.insert(loc=0, column=key, value=di[key], allow_duplicates=False)
+    
+#%%
+"""
+SEPARATE BY SPECIES! USEFUL
+"""
+EGO_SEP_SPECIES = False
 # Loop over species. Implemented computations:
 ##### - Ego network plots (over a hunderd in total)
 ##### - Linear regression of exponent (assuming ego net plots are exponential)
 
-PLOT_EGO = True
-
-plt.close('all')
-species_labels = df_nets.species.unique()
-fig,ax = plt.subplots(2,3)
-
-for s in species_labels:
-    if 'ants' in s or 'beetle' in s or 'baboon_association' in s or 'voles' in s or 'tortoise' in s: # Skip ants, beetles, baboons, voles and tortoises for now. Problem: measurements of same colony (group) for different days (subgroups) have different amount of individuals
-        continue
-    print(s)
-    df_species = df_nets[df_nets.species == s]
-    group_labels = df_species.group.unique()
-    for group in group_labels:
-        df_group = df_species[df_species.group == group]
-        ego_nets = df_group.ego_net.to_numpy()
-        ego_net_stds = df_group.ego_net_std.to_numpy() # individual stds
-        ego_net_stds_vstack = np.vstack(ego_net_stds) # These 3 lines solve problem with nparray formatting of dataframe
-        if len(ego_net_stds_vstack.shape) > 1:
-            ego_net_stds_vstack = ego_net_stds_vstack[0]
-        try:
-            ego_mean = np.mean(ego_nets, axis=0)
-            ego_std_group = np.std(ego_nets, axis=0) # Careful! There are two std, 1) at the level of single-measurement, 2) at the level of groups (more than one measurements, more than one graphfiles)!
-            
-            # Linear regression
-            expo, inter, r2 = exponent_linear_regression(np.trim_zeros(ego_mean,trim='b'))
-            
-            df_nets.loc[df_nets['group'] == group, ['exponent']] = expo
-            df_nets.loc[df_nets['group'] == group, ['intercept']] = inter
-            df_nets.loc[df_nets['group'] == group, ['r2']] = r2
-            
-            # Plot
-            if PLOT_EGO:
-                
-                if not np.any(ego_std_group): # if std at the group level is zero, i.e., if there are no groups
-                    # plot_ego_barplot(ego_mean, std=ego_net_stds_vstack, title=s + group)
-                    plot_ego_log_scale(ego_mean, label=s+group, taxa=df_species.taxa.values[0] )
-                else: # if more than one group, plot group-wise std. Here group means  a bunch of measurements of a same species with same relevant attributes.
-                    # plot_ego_barplot(ego_mean, std=ego_std_group, title=s + group)
-                    plot_ego_log_scale(ego_mean, label=s+group, taxa=df_species.taxa.values[0])
-            else:
-                continue
-        except:
-            print('>>>>>>>> ERROR in {} species. Probably, there is a mismatch in number of individuals accross measurements'.format(s))
+if EGO_SEP_SPECIES:
+    # Read data
+    
+    
+    PLOT_EGO = True
+    
+    plt.close('all')
+    species_labels = df_nets.species.unique()
+    fig,ax = plt.subplots(2,3)
+    
+    for s in species_labels:
+        if 'ants' in s or 'beetle' in s or 'baboon_association' in s or 'voles' in s or 'tortoise' in s: # Skip ants, beetles, baboons, voles and tortoises for now. Problem: measurements of same colony (group) for different days (subgroups) have different amount of individuals
             continue
-
-# Linear regression graph by graph for excluded species
-# And plot of insecta regression
-f, ax = plt.subplots()
-ax.set_ylim([1e-6, 1])
-ax.set_xlim([0,110])
-ax.set_title('Reptilia') 
-for index, row in df_nets.iterrows():
-    if row.taxa == 'Reptilia':
-        ax.semilogy(row.ego_net, 'x', label='Reptilia', color='green', alpha=0.3)
-    s = row.species
-    if 'ants' in s or 'beetle' in s or 'baboon_association' in s or 'voles' in s or 'tortoise' in s:
         print(s)
-        ego_net = row.ego_net
-        expo, inter, r2 = exponent_linear_regression(np.trim_zeros(ego_net, trim='b'))
-        df_nets.loc[index,'exponent'] = expo
-        df_nets.loc[index,'intercept'] = inter
-        df_nets.loc[index,'r2'] = r2
-
-# legend_without_duplicate_labels(ax)
-        
-# plot the ones excluded above one by one
-# ant_colony = df_nets[df_nets['group'] == 'colony6']
-# elephant_seal = df_nets[df_nets['species']=='elephantseal_dominance_weighted']
-# beetle_C1 = df_nets[df_nets['group']=='C1']
-# a = ant_colony
-# for day, i in enumerate(a.ego_net.to_numpy()):
-#     plot_ego_barplot(i, std=0, title='Ant_colony6'.format(day))
-
-# 
-
-
-# plot exponent values
-plot_exponents(df_nets)
+        df_species = df_nets[df_nets.species == s]
+        group_labels = df_species.group.unique()
+        for group in group_labels:
+            df_group = df_species[df_species.group == group]
+            ego_nets = df_group.ego_net.to_numpy()
+            ego_net_stds = df_group.ego_net_std.to_numpy() # individual stds
+            ego_net_stds_vstack = np.vstack(ego_net_stds) # These 3 lines solve problem with nparray formatting of dataframe
+            if len(ego_net_stds_vstack.shape) > 1:
+                ego_net_stds_vstack = ego_net_stds_vstack[0]
+            try:
+                ego_mean = np.mean(ego_nets, axis=0)
+                ego_std_group = np.std(ego_nets, axis=0) # Careful! There are two std, 1) at the level of single-measurement, 2) at the level of groups (more than one measurements, more than one graphfiles)!
+                
+                # Linear regression
+                expo, inter, r2 = exponent_linear_regression(np.trim_zeros(ego_mean,trim='b'))
+                
+                df_nets.loc[df_nets['group'] == group, ['exponent']] = expo
+                df_nets.loc[df_nets['group'] == group, ['intercept']] = inter
+                df_nets.loc[df_nets['group'] == group, ['r2']] = r2
+                
+                # Plot
+                if PLOT_EGO:
+                    
+                    if not np.any(ego_std_group): # if std at the group level is zero, i.e., if there are no groups
+                        # plot_ego_barplot(ego_mean, std=ego_net_stds_vstack, title=s + group)
+                        plot_ego_log_scale(ego_mean, label=s+group, taxa=df_species.taxa.values[0] )
+                    else: # if more than one group, plot group-wise std. Here group means  a bunch of measurements of a same species with same relevant attributes.
+                        # plot_ego_barplot(ego_mean, std=ego_std_group, title=s + group)
+                        plot_ego_log_scale(ego_mean, label=s+group, taxa=df_species.taxa.values[0])
+                else:
+                    continue
+            except:
+                print('>>>>>>>> ERROR in {} species. Probably, there is a mismatch in number of individuals accross measurements'.format(s))
+                continue
+    
+    # Linear regression graph by graph for excluded species
+    # And plot of insecta regression
+    f, ax = plt.subplots()
+    ax.set_ylim([1e-6, 1])
+    ax.set_xlim([0,110])
+    ax.set_title('Reptilia') 
+    for index, row in df_nets.iterrows():
+        if row.taxa == 'Reptilia':
+            ax.semilogy(row.ego_net, 'x', label='Reptilia', color='green', alpha=0.3)
+        s = row.species
+        if 'ants' in s or 'beetle' in s or 'baboon_association' in s or 'voles' in s or 'tortoise' in s:
+            print(s)
+            ego_net = row.ego_net
+            expo, inter, r2 = exponent_linear_regression(np.trim_zeros(ego_net, trim='b'))
+            df_nets.loc[index,'exponent'] = expo
+            df_nets.loc[index,'intercept'] = inter
+            df_nets.loc[index,'r2'] = r2
+    
+    # legend_without_duplicate_labels(ax)
+            
+    # plot the ones excluded above one by one
+    # ant_colony = df_nets[df_nets['group'] == 'colony6']
+    # elephant_seal = df_nets[df_nets['species']=='elephantseal_dominance_weighted']
+    # beetle_C1 = df_nets[df_nets['group']=='C1']
+    # a = ant_colony
+    # for day, i in enumerate(a.ego_net.to_numpy()):
+    #     plot_ego_barplot(i, std=0, title='Ant_colony6'.format(day))
+    
+    # 
+    
+    
+    # plot exponent values
+    plot_exponents(df_nets)
 
 #%%
 # Baboon time evolution ego plot
@@ -455,7 +632,7 @@ def time_evolution_baboon_ego_plot(n_partitions, df_bab):
 
 
 df_bab = read_baboon_df()
-bab_ego_net_time_evolution = time_evolution_baboon_ego_plot(n_partitions=16, df_bab=df_bab)
+bab_ego_net_time_evolution = time_evolution_baboon_ego_plot(n_partitions=100, df_bab=df_bab)
 
 
 #%%
@@ -467,43 +644,217 @@ for i, axis in enumerate(ax.flatten()):
 plt.tight_layout()
     
 
-#%%
-def read_primary_children_data():  
-    df_child = pd.read_csv('../primary_school/primaryschool.csv', sep='\t',engine='python')
-    return df_child
 
-def get_primary_children_graph(df_child):
-     # aggregated network. No weights  
-    G_child_aggr = nx.from_pandas_edgelist(df=df_child, source='i', target='j')
-    
-    # Network with weights. Each interaction corresponds to a weight. The weight is saved as an attribute.
-    G_child = nx.Graph()
-    G_child.add_nodes_from(list(G_child_aggr.nodes))
-    for index, row in df_child.iterrows():
-        if G_child.has_edge(row.i, row.j):
-            G_child[row.i][row.j]['weight'] += 1.
-        else:
-            G_child.add_edge(row.i, row.j, t=row.t, weight=1.)
-    
-    return G_child
-
-df_child = read_primary_children_data()
-
-G_child = get_primary_children_graph(df_child)
 
 #%%
-# Ego network and plots
-ego_child, ego_std_child = get_ego_matrix(G_child)
-plot_ego_barplot(ego_child, ego_std_child, 'primary school children')
-single_ego_logplot(ego_child, ego_std_child, 'primary logplot')
+# # Ego network and plots
+# ego_child, ego_std_child = get_ego_matrix(G_child)
+# plot_ego_barplot(ego_child, ego_std_child, 'primary school children')
+# single_ego_logplot(ego_child, ego_std_child, 'primary school children logplot')
+# exponent_linear_regression(np.trim_zeros(ego_child, trim='b'))
+
+# #%%
+# # Baboon entry on the df_nets, for future use:
+# dfbab = df_nets[df_nets.species=='baboon_separate_dataset']
+# gbab = dfbab.graph.values[0]
+# ego_bab, ego_std_bab = get_ego_matrix(gbab)
+# exponent_linear_regression(np.trim_zeros(ego_bab, trim='b'))
+
+
+#%%
+"""
+centrality measures
+"""
+
+# select only spatial proximity and physical contact networks
+df_prox = df_info.loc[(df_info['Interaction type']=='physical contact') |
+                       (df_info['Interaction type']=='spatial proximity')]
+gfn = set(df_prox.graphfile)
+
+# only proximity nets
+df_nets_prox = df_nets[df_nets.filename.isin(gfn)]
+
+axes_dict = {'Actinopterygii':(0,0), 'Aves':(0,1), 'Reptilia':(0,2),
+             'Insecta':(1,0), 'Mammalia':(1,1)}
+# degree centrality
+fig, ax = plt.subplots(2,3)
+fig.suptitle('degree centrality')
+fig_dnied, ax_dnied = plt.subplots(2,3) # dnied: different number of individuals each day
+fig_dnied.suptitle('degree centrality')
+
+#eigenvector centrality
+fig_ec, ax_ec = plt.subplots(2,3)
+fig_ec.suptitle('eigenvector centrality')
+fig_ec_dnied, ax_ec_dnied = plt.subplots(2,3) # dnied: different number of individuals each day
+fig_ec_dnied.suptitle('eigenvector centrality')
+
+# Betweenness centrality
+fig_bc, ax_bc = plt.subplots(2,3)
+fig_bc.suptitle('betweenness centrality')
+fig_bc_dnied, ax_bc_dnied = plt.subplots(2,3) # dnied: different number of individuals each day
+fig_bc_dnied.suptitle('betweenness centrality')
+
+def avg_std_numpy_arrays(a):
+    try:
+        vsa = np.vstack(a)
+    except:
+        raise ValueError('array does not have same number of elements, and'
+                          + 'cannot be converted into matrix')
+     
+    vsa_sort = np.sort(vsa, axis=1)
+    mean = vsa_sort.mean(axis=0)[::-1]
+    std = vsa_sort.std(axis=0)[::-1]
+     
+    return mean, std
+                    
+species_prox = set(df_nets_prox.species_name)
+for s in species_prox:
+    df = df_nets_prox[df_nets_prox.species_name == s]
+    if s=='Camponotus fellah' or s=='Papio cynocephalus' or s=='Tursiops truncatus' or s=='Bolitotherus cornutus' or s=='Procyon lotor': # some are special
+        for index, row in df.iterrows():
+            mod_deg_sorted = np.sort(row.mod_deg_centrality)[::-1]
+            eig_sorted = np.sort(row.eigenvector_centrality)[::-1]
+            bet_sorted = np.sort(row.betweenness_centrality)[::-1]
+            
+            ax_dnied[axes_dict[row.taxa]].plot(mod_deg_sorted)
+            ax_dnied[axes_dict[row.taxa]].set_title(row.taxa)
+            ax_dnied[axes_dict[row.taxa]].set_ylim([0, 1])
+            
+            ax_ec_dnied[axes_dict[row.taxa]].plot(mod_deg_sorted)
+            ax_ec_dnied[axes_dict[row.taxa]].set_title(row.taxa)
+            ax_ec_dnied[axes_dict[row.taxa]].set_ylim([0, 1])
+            
+            ax_bc_dnied[axes_dict[row.taxa]].plot(mod_deg_sorted)
+            ax_bc_dnied[axes_dict[row.taxa]].set_title(row.taxa)
+            ax_bc_dnied[axes_dict[row.taxa]].set_ylim([0, 1])
+            
+    else:
+        mean_mod_deg, std_mod_deg = avg_std_numpy_arrays(df.mod_deg_centrality.values)
+        mean_eig, std_eig = avg_std_numpy_arrays(df.eigenvector_centrality.values)
+        mean_bet, std_bet = avg_std_numpy_arrays(df.betweenness_centrality.values)
+        
+        ax[axes_dict[df.taxa.values[0]]].errorbar(x=list(range(len(mean_mod_deg))), y=mean_mod_deg, yerr=std_mod_deg, fmt='-x', label=df.species.values[0])
+        ax[axes_dict[df.taxa.values[0]]].set_title(df.taxa.values[0])
+        ax[axes_dict[df.taxa.values[0]]].set_ylim([0, 1])        
+        
+        ax_ec[axes_dict[df.taxa.values[0]]].errorbar(x=list(range(len(mean_eig))), y=mean_eig, yerr=std_eig, fmt='-x', label=df.species.values[0])
+        ax_ec[axes_dict[df.taxa.values[0]]].set_title(df.taxa.values[0])
+        ax_ec[axes_dict[df.taxa.values[0]]].set_ylim([0, 1])
+        
+        ax_bc[axes_dict[df.taxa.values[0]]].errorbar(x=list(range(len(mean_bet))), y=mean_bet, yerr=std_bet, fmt='-x', label = df.species.values[0])
+        ax_bc[axes_dict[df.taxa.values[0]]].set_title(df.taxa.values[0])
+        ax_bc[axes_dict[df.taxa.values[0]]].set_ylim([0, 1])
+        
+fig.legend(); fig_ec.legend(); fig_bc.legend()
+plt.show()
+#%%
+# Persistence of signatures
+# Following Jari et al.
+def H(p):
+    """
+    Computes the pseudo shannon entropy of p
+
+    Parameters
+    ----------
+    p : 1d numpy array
+        p(r) is fraction of contacts between the ego and the alter of rank r
+
+    Returns
+    -------
+    H(P) = - sum(from r=1 to k) of p(r) log p(r) 
+
+    """
+    return - np.sum(p * np.log(p))
+    
+    
+def jensen_shannon_divergence(P1, P2):
+    """
+    Parameters
+    ----------
+    P1 and P2 : numpy arrays
+        Social signatures with P = {p(r)} as defined in H.
+
+    """
+    return H(.5*(P1 + P2)) - .5*(H(P1) + H(P2))
+
+
+#%%
+# 2D plots - Choose what to plot from each. IMPROVED  BELOW WITH SEABORN PAIRPLOT
+    
+# import matplotlib.patches as mpatches
+# fig,ax = plt.subplots(1)
+
+# taxa_color = {'Actinopterygii': 'blue', 'Aves': 'orange', 'Insecta':'black', 'Mammalia':'red', 'Reptilia':'green' }
+
+# for i, row in df_nets.iloc[::-1].iterrows(): # df.iloc[::-1] reverses iteration order. I do that to make fishes visible.
+#     gini_deg = gini(row.mod_deg_centrality)
+#     gini_bet = gini(row.betweenness_centrality)
+    
+#     # get ego graphs and slopes just by row, without grouping in species
+#     G = row.graph
+#     ego_mean, ego_std = get_ego_matrix(G)
+#     slope, intercept, r2 = exponent_linear_regression(np.trim_zeros(ego_mean, trim='b'))
+    
+#     if r2<1e-3:
+#         continue
+    
+#     ax.scatter(x=slope, y=r2, c=taxa_color[row.taxa], marker='x')
+    
+# ax.set_xlabel('slope of log ego barplot', fontsize='xx-large')
+# ax.set_ylabel('r squared', fontsize='xx-large')
+
+# # Computations for primary school children graph
+# child_slope, child_intercept, child_r2 = exponent_linear_regression(np.trim_zeros(ego_child, trim='b'))
+# ec = nx.eigenvector_centrality_numpy(G_child, weight='weight')
+# eig_centr_child = np.array([ec[node] for node in ec]) # eigenvector centrality
+# clust_child = nx.clustering(G_child, weight='weight')
+# clust_child_mean = np.mean(list(clust_child.values()))
+# bet_c_dict =  nx.betweenness_centrality(G_child, weight='weight')
+# bet_centr_child = np.array([bet_c_dict[node] for node in bet_c_dict])
+# mod_deg_centr_child = modified_degree_centrality(G_child)
+
+# x_child = child_slope; y_child = child_r2
+# ax.scatter(x=x_child, y=y_child, c=taxa_color['Mammalia'])
+
+# # line
+# ax.axhline(y=y_child, xmin=0, xmax=1, alpha=0.3, color='grey')
+# ax.axvline(x=x_child, ymin=0, ymax=1, alpha=0.3, color='grey')
+
+# # legend
+# mam = mpatches.Patch(color=taxa_color['Mammalia'], label='Mammalia')
+# act = mpatches.Patch(color=taxa_color['Actinopterygii'], label='Actinopterygii')
+# ave = mpatches.Patch(color=taxa_color['Aves'], label='Aves')
+# ins = mpatches.Patch(color=taxa_color['Insecta'], label='Insecta')
+# rep = mpatches.Patch(color=taxa_color['Reptilia'], label='Reptilia')
+# ax.legend(handles=[mam, act, ave, ins, rep])
+
+#%%
+
+#%%
+# SEABORN PAIRPLOT
+import seaborn as sns
+sns.set(style="ticks", color_codes=True)
+
+# select only spatial proximity and physical contact networks
+df_prox = df_nets.loc[(df_nets['Interaction type']=='physical contact') |
+                       (df_nets['Interaction type']=='spatial proximity')]
+
+columns_to_plot = ['Transitivity', 'clustering_mean', 'Degree assortativity', 'Newman modularity (Q)', 'Network cohesion', 'taxa']
+plotdf = df_prox[columns_to_plot].copy()
+plotdf.at[787, 'taxa'] = 'School children' # children are not mammals for this plot!
+
+colors = sns.xkcd_palette(["windows blue", "amber", "light brown", "dusty purple", "faded green",  'red'])
+
+g = sns.pairplot(plotdf, hue='taxa', markers=['o','o','o','o','o','s'], palette=colors, corner=True, dropna=True)
 
 #%%
 """
 TODO:
-    - Manage plots better. Maybe save figs.
-    - Sometimes the normalization is a division by zero. Check!
     - Problems with ego nets of ants, beetles, baboons, voles and tortoises: measurements of same colony (group) for different days (subgroups) have different amount of individuals, and ego networks cannot be aggregated
-
+    - Children dataset: identify classes
+    - Show fitted lines when doing linear regression
+    - Evolution of baboon's <-> Jari's paper
+    - Centrality measures difference: Gini coefficient
 """ 
 
 
